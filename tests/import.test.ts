@@ -208,3 +208,35 @@ test('savings simulator', () => {
   assert.equal(formatDuration(12), '1 an');
   assert.equal(formatDuration(8), '8 mois');
 });
+
+// Boursorama-style export (fake data): amount column named "Solde", a second "Solde" holding the
+// account balance, a clean "Libellé suggéré" and the bank's categories; delivered inside a ZIP.
+const BOURSO =
+  '﻿"Date Opération";"Date Valeur";Libellé;"Libellé Suggéré";Catégorie;"Catégorie Parente";Solde;Commentaire;"Numéro Compte";"Libellé Compte";Solde;Pointage\n' +
+  '2026-09-25;2026-09-25;"CARTE 24/09/26 MAGASIN TRUC CB*1111";"Magasin Truc";Alimentation;"Vie quotidienne";-12,30;;00012345678;BoursoBank;250.10;Non\n' +
+  '2026-09-24;2026-09-24;"VIR MANGOPAY SA";Mangopay;"Virements reçus";"Virements reçus";40,00;;00012345678;BoursoBank;250.10;Non\n' +
+  '2026-09-23;2026-09-23;"CARTE 22/09/26 KEBAB DU COIN CB*1111";"Kebab du Coin";"Restaurants, bars";"Loisirs et sorties";-8,50;;00012345678;BoursoBank;250.10;Non\n';
+
+test('Boursorama export inside a ZIP: amount vs balance, suggested label, bank categories', async () => {
+  const { zipSync, strToU8 } = await import('fflate');
+  const { parseStatementFile } = await import('../src/lib/bankImport.ts');
+  const zip = zipSync({ 'export-operations.CSV': strToU8(BOURSO), 'kit-contestation.pdf': new Uint8Array([37, 80, 68, 70]) });
+  const r = parseStatementFile(zip);
+  assert.deepEqual(r.rows.map((x) => [x.date, x.amount]), [['2026-09-25', -12.3], ['2026-09-24', 40], ['2026-09-23', -8.5]]);
+  assert.equal(r.rows[0].displayLabel, 'Magasin Truc');
+
+  const db = await makeDb();
+  const cats = await getCategories(db);
+  const id = (name: string) => cats.find((c) => c.name === name)!.id;
+  const plan = await prepareImport(db, r.rows);
+  const byLabel = (l: string) => plan.rows.find((p) => p.label === l)!;
+  assert.equal(byLabel('Magasin Truc').categoryId, id('Nourriture')); // from the bank category
+  assert.equal(byLabel('Mangopay').type, 'sale'); // Vinted payout
+  assert.equal(byLabel('Kebab du Coin').categoryId, id('Sorties'));
+});
+
+test('ZIP without any statement gives a clear error', async () => {
+  const { zipSync } = await import('fflate');
+  const { parseStatementFile } = await import('../src/lib/bankImport.ts');
+  assert.throws(() => parseStatementFile(zipSync({ 'a.pdf': new Uint8Array([1, 2, 3]) })), /Aucun relevé/);
+});

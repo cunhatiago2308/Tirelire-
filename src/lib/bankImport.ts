@@ -1,5 +1,6 @@
 // Bank statement import: parsing (CSV / OFX), label cleaning, rule-based categorisation and
 // de-duplication. Pure functions only — no database access here.
+import { unzipSync } from 'fflate';
 import { isValidDateStr, parseDate } from './dates.ts';
 import { round2 } from './money.ts';
 
@@ -10,6 +11,10 @@ export interface ParsedTx {
   label: string;
   /** Bank's own transaction id (OFX FITID), when available. */
   fitid: string | null;
+  /** Clean merchant name some banks provide ("Libellé suggéré"): shown instead of the raw label. */
+  displayLabel?: string | null;
+  /** The bank's own category ("Alimentation", "Transports"…): extra text for rule matching. */
+  bankCategory?: string | null;
 }
 
 export interface ParseResult {
@@ -170,27 +175,59 @@ interface Columns {
   amount: number | null;
   debit: number | null;
   credit: number | null;
+  display?: number | null;
+  categories?: number[];
 }
 
-function columnsFromHeader(header: string[]): Columns | null {
+const HAS_CENTS = /^[-+−]?\s*[\d\s.,]*[.,]\d{2}\s*(€|EUR)?$/i;
+
+/**
+ * Amount column when the header has no "Montant"/"Débit"/"Crédit" (e.g. Boursorama names it "Solde",
+ * next to a real balance column also called "Solde"): among columns holding amounts with cents,
+ * the one with negative values and the most distinct values — a balance barely changes.
+ */
+function guessAmountColumn(h: string[], data: string[][], exclude: Set<number>): number {
+  let best = -1;
+  let bestScore = -1;
+  h.forEach((_c, i) => {
+    if (exclude.has(i)) return;
+    const cells = data.map((r) => (r[i] ?? '').trim()).filter(Boolean);
+    if (cells.length < Math.max(1, data.length * 0.8)) return;
+    if (!cells.every((c) => HAS_CENTS.test(c) && parseBankAmount(c) != null)) return;
+    const values = cells.map((c) => parseBankAmount(c)!);
+    const score = new Set(values).size + (values.some((v) => v < 0) ? 1000 : 0);
+    if (score > bestScore) { best = i; bestScore = score; }
+  });
+  return best;
+}
+
+function columnsFromHeader(header: string[], data: string[][]): Columns | null {
   const h = header.map(normalize);
   const dateCols = h.map((c, i) => (/\bDATE/.test(c) ? i : -1)).filter((i) => i >= 0);
   if (!dateCols.length) return null;
   const date = dateCols.find((i) => !/VALEUR/.test(h[i])) ?? dateCols[0];
   const find = (re: RegExp) => h.findIndex((c, i) => i !== date && re.test(c));
-  const amount = find(/\b(MONTANT|AMOUNT|SOMME|VALEUR EUR)\b/);
+  let amount = find(/\b(MONTANT|AMOUNT|SOMME|VALEUR EUR)\b/);
   const debit = find(/\bDEBIT\b/);
   const credit = find(/\bCREDIT\b/);
-  if (amount < 0 && debit < 0 && credit < 0) return null;
+  const isText = (c: string) => !/\bDATE/.test(c) && !/COMPTE/.test(c);
   const labels = h
-    .map((c, i) => (i !== date && /\b(LIBELLE|LABEL|DESCRIPTION|INTITULE|DETAIL|NATURE|OPERATION|BENEFICIAIRE|TIERS|COMMENTAIRE|MEMO)\b/.test(c) && !/\bDATE/.test(c) ? i : -1))
+    .map((c, i) => (isText(c) && /\b(LIBELLE|LABEL|DESCRIPTION|INTITULE|DETAIL|NATURE|OPERATION|BENEFICIAIRE|TIERS|COMMENTAIRE|MEMO)\b/.test(c) ? i : -1))
     .filter((i) => i >= 0);
+  const categories = h.map((c, i) => (/\bCATEGOR/.test(c) ? i : -1)).filter((i) => i >= 0);
+  if (amount < 0 && debit < 0 && credit < 0) {
+    amount = guessAmountColumn(h, data, new Set([...dateCols, ...labels, ...categories]));
+    if (amount < 0) return null;
+  }
+  const display = labels.find((i) => /SUGGERE|SIMPLIFIE|MARCHAND|COMMERCANT|ENSEIGNE/.test(h[i]));
   return {
     date,
-    labels,
+    labels: labels.filter((i) => i !== display),
     amount: amount >= 0 ? amount : null,
     debit: debit >= 0 ? debit : null,
     credit: credit >= 0 ? credit : null,
+    display: display ?? null,
+    categories,
   };
 }
 
@@ -216,7 +253,7 @@ function parseCsv(text: string): ParseResult {
   let cols: Columns | null = null;
   let start = 0;
   for (let i = 0; i < Math.min(rows.length, 40); i++) {
-    cols = columnsFromHeader(rows[i]);
+    cols = columnsFromHeader(rows[i], rows.slice(i + 1, i + 31));
     if (cols) { start = i + 1; break; }
   }
   if (!cols) {
@@ -243,7 +280,9 @@ function parseCsv(text: string): ParseResult {
     }
     if (amount === 0) continue;
     const label = cols.labels.map((i) => r[i] ?? '').filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join(' — ');
-    out.push({ date, amount, label: label || 'Opération', fitid: null });
+    const displayLabel = cols.display != null ? (r[cols.display] ?? '').trim() || null : null;
+    const bankCategory = (cols.categories ?? []).map((i) => r[i] ?? '').filter(Boolean).join(' ') || null;
+    out.push({ date, amount, label: label || displayLabel || 'Opération', fitid: null, displayLabel, bankCategory });
   }
   return { format: 'csv', rows: out, skipped };
 }
@@ -270,6 +309,39 @@ function parseOfx(text: string): ParseResult {
     out.push({ date, amount, label: label || 'Opération', fitid: ofxTag(b, 'FITID') });
   }
   return { format: 'ofx', rows: out, skipped };
+}
+
+const isZip = (b: Uint8Array) => b[0] === 0x50 && b[1] === 0x4b && b[2] === 0x03 && b[3] === 0x04;
+
+/**
+ * Reads a statement file as picked by the user: CSV / OFX, or a ZIP containing them
+ * (some banks, e.g. Boursorama, zip the CSV together with PDFs — those are ignored).
+ */
+export function parseStatementFile(bytes: Uint8Array): ParseResult {
+  if (!isZip(bytes)) return parseStatement(decodeBytes(bytes));
+  let files: Record<string, Uint8Array>;
+  try {
+    files = unzipSync(bytes, { filter: (f) => /\.(csv|ofx|qfx|txt)$/i.test(f.name) && !f.name.startsWith('__MACOSX') });
+  } catch {
+    throw new Error('Fichier ZIP illisible.');
+  }
+  const results: ParseResult[] = [];
+  let lastError: Error | null = null;
+  for (const name of Object.keys(files).sort()) {
+    try {
+      results.push(parseStatement(decodeBytes(files[name])));
+    } catch (e) {
+      lastError = e as Error;
+    }
+  }
+  if (!results.length) {
+    throw lastError ?? new Error('Aucun relevé (CSV ou OFX) trouvé dans ce ZIP.');
+  }
+  return {
+    format: results[0].format,
+    rows: results.flatMap((r) => r.rows),
+    skipped: results.reduce((n, r) => n + r.skipped, 0),
+  };
 }
 
 export function parseStatement(text: string): ParseResult {
@@ -399,7 +471,10 @@ export function planImport(
     if (knownKeys.has(keys[i])) { alreadyImported++; return; }
     const isCredit = p.amount > 0;
     const amount = Math.abs(p.amount);
-    const rule = matchRule(rules, p.label, p.amount);
+    // Merchant keywords first; the bank's own category only as a fallback.
+    const rule =
+      matchRule(rules, [p.label, p.displayLabel].filter(Boolean).join(' '), p.amount) ??
+      (p.bankCategory ? matchRule(rules, p.bankCategory, p.amount) : null);
     const type: TxKind = !isCredit ? 'expense' : rule?.kind === 'sale' ? 'sale' : 'income';
     // Same amount & direction within a few days → probably the manual entry of this very operation.
     let matchIdx = -1;
@@ -415,7 +490,7 @@ export function planImport(
       date: p.date,
       amount,
       isCredit,
-      label: cleanLabel(p.label),
+      label: p.displayLabel ? cleanLabel(p.displayLabel) : cleanLabel(p.label),
       rawLabel: p.label,
       type,
       categoryId: rule && rule.kind !== 'sale' && rule.kind !== 'ignore' ? rule.category_id : null,
