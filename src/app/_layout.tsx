@@ -1,9 +1,8 @@
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
 import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
-import { SQLiteProvider } from 'expo-sqlite';
 import { StatusBar } from 'expo-status-bar';
-import { migrate } from '../db/schema.ts';
+import { DbGate } from '../components/DbGate.tsx';
 import { colors } from '../theme.ts';
 
 const navTheme = {
@@ -32,7 +31,7 @@ export default function RootLayout() {
   useWebAppSetup();
   return (
     <ThemeProvider value={navTheme}>
-      <SQLiteProvider databaseName="tirelire.db" onInit={migrate}>
+      <DbGate>
         <StatusBar style="light" />
         <Stack
           screenOptions={{
@@ -53,7 +52,7 @@ export default function RootLayout() {
           <Stack.Screen name="rules" options={{ title: 'Règles de catégorisation' }} />
           <Stack.Screen name="simulator" options={{ title: "Simulateur d'épargne" }} />
         </Stack>
-      </SQLiteProvider>
+      </DbGate>
     </ThemeProvider>
   );
 }

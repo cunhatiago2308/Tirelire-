@@ -18,7 +18,9 @@ const DEFAULT_INCOME_CATEGORIES: [string, string][] = [
 ];
 
 /** Keyword rules used to categorise imported bank lines (matched on whole words, accents ignored). */
-const DEFAULT_RULES: ['expense' | 'income' | 'sale' | 'ignore', string | null, string[]][] = [
+type RuleSeed = ['expense' | 'income' | 'sale' | 'ignore', string | null, string[]];
+
+const DEFAULT_RULES: RuleSeed[] = [
   ['expense', 'Nourriture', [
     'CARREFOUR', 'LECLERC', 'AUCHAN', 'LIDL', 'ALDI', 'INTERMARCHE', 'MONOPRIX', 'FRANPRIX', 'CASINO', 'SUPER U',
     'HYPER U', 'U EXPRESS', 'SUPERU', 'NETTO', 'PICARD', 'GRAND FRAIS', 'BIOCOOP', 'NATURALIA', 'CORA', 'SPAR',
@@ -42,6 +44,25 @@ const DEFAULT_RULES: ['expense' | 'income' | 'sale' | 'ignore', string | null, s
   ['income', 'Bourse / aides', ['CAF', 'CROUS', 'BOURSE', 'APL', 'PRIME ACTIVITE']],
   ['income', 'Salaire / job', ['SALAIRE', 'PAIE', 'REMUNERATION']],
   ['ignore', null, ['LIVRET A', 'LDDS', 'LEP', 'VIREMENT INTERNE', 'VIR INTERNE', 'COMPTE EPARGNE']],
+];
+
+/** Category names used by banks in their exports (Boursorama, Crédit Agricole, BNP…). */
+const BANK_CATEGORY_RULES: RuleSeed[] = [
+  ['expense', 'Nourriture', ['ALIMENTATION', 'SUPERMARCHE', 'SUPERMARCHES', 'HYPERMARCHE', 'COURSES']],
+  ['expense', 'Sorties', ['RESTAURANTS', 'RESTAURATION', 'LOISIRS', 'SORTIES', 'BARS', 'SPECTACLES']],
+  ['expense', 'Transport', ['TRANSPORTS', 'CARBURANT', 'CARBURANTS', 'PARKING', 'PEAGE', 'PEAGES', 'VOITURE']],
+  ['expense', 'Abonnements', ['ABONNEMENTS', 'TELEPHONIE', 'TELEPHONE', 'INTERNET', 'MULTIMEDIA']],
+  ['expense', 'Logement', ['LOGEMENT', 'ELECTRICITE', 'GAZ', 'EAU']],
+  ['expense', 'Fournitures', ['FOURNITURES', 'LIBRAIRIE', 'PAPETERIE', 'ETUDES', 'SCOLARITE']],
+  ['income', 'Salaire / job', ['SALAIRES', 'REVENUS DU TRAVAIL']],
+  ['income', 'Bourse / aides', ['ALLOCATIONS', 'AIDES', 'PRESTATIONS SOCIALES']],
+  ['expense', 'Divers', ['SANTE', 'PHARMACIE']],
+  ['expense', 'Fournitures', ['LIVRES']],
+  // Merchants seen in student / reseller statements
+  ['sale', null, ['MANGOPAY']], // Vinted payouts go through Mangopay
+  ['expense', 'Nourriture', ['IZLY']],
+  ['expense', 'Abonnements', ['QOBUZ', 'WHOP']],
+  ['expense', 'Sorties', ['TASTER']],
 ];
 
 /** Colours offered to new categories, in order. */
@@ -136,19 +157,27 @@ const MIGRATIONS: ((db: Db) => Promise<void>)[] = [
         category_id INTEGER REFERENCES categories(id) ON DELETE CASCADE
       );
     `);
-    const cats = await db.getAllAsync<{ id: number; name: string }>('SELECT id, name FROM categories', []);
-    const byName = new Map(cats.map((c) => [c.name, c.id]));
-    for (const [kind, category, patterns] of DEFAULT_RULES) {
-      const categoryId = category ? byName.get(category) : null;
-      if (categoryId === undefined) continue; // category renamed or deleted by the user
-      for (const pattern of patterns) {
-        await db.runAsync('INSERT INTO category_rules (pattern, kind, category_id) VALUES (?, ?, ?)', [
-          pattern, kind, categoryId,
-        ]);
-      }
-    }
+    await seedRules(db, DEFAULT_RULES);
+  },
+  // v3: rules on the bank's own category names (used when no merchant keyword matches)
+  async (db) => {
+    await seedRules(db, BANK_CATEGORY_RULES);
   },
 ];
+
+async function seedRules(db: Db, rules: RuleSeed[]): Promise<void> {
+  const cats = await db.getAllAsync<{ id: number; name: string }>('SELECT id, name FROM categories', []);
+  const byName = new Map(cats.map((c) => [c.name, c.id]));
+  for (const [kind, category, patterns] of rules) {
+    const categoryId = category ? byName.get(category) : null;
+    if (categoryId === undefined) continue; // category renamed or deleted by the user
+    for (const pattern of patterns) {
+      await db.runAsync('INSERT INTO category_rules (pattern, kind, category_id) VALUES (?, ?, ?)', [
+        pattern, kind, categoryId,
+      ]);
+    }
+  }
+}
 
 export async function migrate(db: Db): Promise<void> {
   await db.execAsync('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
