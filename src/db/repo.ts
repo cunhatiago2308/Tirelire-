@@ -9,6 +9,16 @@ import {
   type DailyAvailable,
 } from '../lib/calc.ts';
 import { addMonths, dateInMonth, dayOf, monthOf, monthRange } from '../lib/dates.ts';
+import {
+  keywordFromLabel,
+  normalize,
+  planImport,
+  type ExistingTx,
+  type ImportPlan,
+  type ParsedTx,
+  type PlannedRow,
+  type RuleKind,
+} from '../lib/bankImport.ts';
 import { round2 } from '../lib/money.ts';
 import { CATEGORY_COLORS } from './schema.ts';
 import type {
@@ -17,6 +27,7 @@ import type {
   Db,
   Recurring,
   RecurringRow,
+  RuleRow,
   SavingsEntry,
   SavingsGoal,
   Transaction,
@@ -307,6 +318,12 @@ export async function generateDueRecurring(db: Db, today: string): Promise<numbe
     for (const o of due) {
       const r = byId.get(o.ruleId)!;
       await db.runAsync('INSERT INTO recurring_log (recurring_id, month) VALUES (?, ?)', [r.id, o.month]);
+      // Already paid according to an imported bank statement → link it instead of adding a duplicate.
+      const imported = await findImportedPayment(db, r.amount, o.date);
+      if (imported) {
+        await db.runAsync('UPDATE transactions SET recurring_id = ? WHERE id = ?', [r.id, imported]);
+        continue;
+      }
       await db.runAsync(
         "INSERT INTO transactions (type, amount, category_id, date, note, recurring_id) VALUES ('expense', ?, ?, ?, ?, ?)",
         [r.amount, r.category_id, o.date, r.label, r.id],
@@ -314,6 +331,33 @@ export async function generateDueRecurring(db: Db, today: string): Promise<numbe
     }
   });
   return due.length;
+}
+
+const RECURRING_TOLERANCE_DAYS = 5;
+
+async function findImportedPayment(db: Db, amount: number, date: string): Promise<number | null> {
+  const row = await db.getFirstAsync<{ id: number }>(
+    `SELECT id FROM transactions
+     WHERE type = 'expense' AND import_key IS NOT NULL AND recurring_id IS NULL
+       AND ABS(amount - ?) < 0.005 AND ABS(julianday(date) - julianday(?)) <= ?
+     ORDER BY ABS(julianday(date) - julianday(?)) LIMIT 1`,
+    [amount, date, RECURRING_TOLERANCE_DAYS, date],
+  );
+  return row?.id ?? null;
+}
+
+/** An imported debit that pays a fixed expense not yet generated this month counts as that occurrence. */
+async function linkImportedToRecurring(db: Db, txId: number, amount: number, date: string): Promise<void> {
+  const month = monthOf(date);
+  const rules = await db.getAllAsync<Recurring>(
+    `SELECT * FROM recurring r WHERE active = 1 AND start_month <= ? AND ABS(amount - ?) < 0.005
+     AND NOT EXISTS (SELECT 1 FROM recurring_log l WHERE l.recurring_id = r.id AND l.month = ?)`,
+    [month, amount, month],
+  );
+  const rule = rules.find((r) => Math.abs(dayOf(dateInMonth(month, r.day)) - dayOf(date)) <= RECURRING_TOLERANCE_DAYS);
+  if (!rule) return;
+  await db.runAsync('INSERT INTO recurring_log (recurring_id, month) VALUES (?, ?)', [rule.id, month]);
+  await db.runAsync('UPDATE transactions SET recurring_id = ? WHERE id = ?', [rule.id, txId]);
 }
 
 export async function upcomingFixed(db: Db, today: string): Promise<{ total: number; items: Recurring[] }> {
@@ -418,6 +462,94 @@ export async function processAutoSavings(db: Db, today: string): Promise<string[
 export async function runDailyJobs(db: Db, today: string): Promise<void> {
   await generateDueRecurring(db, today);
   await processAutoSavings(db, today);
+}
+
+// ─── Bank statement import ───────────────────────────────────────────────────
+
+export function listRules(db: Db): Promise<RuleRow[]> {
+  return db.getAllAsync<RuleRow>(
+    `SELECT r.*, c.name AS category_name, c.color AS category_color
+     FROM category_rules r LEFT JOIN categories c ON c.id = r.category_id
+     ORDER BY r.kind, c.name, r.pattern`,
+    [],
+  );
+}
+
+export async function saveRule(db: Db, pattern: string, kind: RuleKind, categoryId: number | null): Promise<void> {
+  const p = normalize(pattern);
+  if (!p) return;
+  // One rule per keyword and direction: a new choice replaces the old one.
+  const credit = kind === 'income' || kind === 'sale';
+  await db.runAsync(
+    `DELETE FROM category_rules WHERE pattern = ? AND (kind = 'ignore' OR ${credit ? "kind IN ('income', 'sale')" : "kind = 'expense'"})`,
+    [p],
+  );
+  await db.runAsync('INSERT INTO category_rules (pattern, kind, category_id) VALUES (?, ?, ?)', [p, kind, categoryId]);
+}
+
+export async function deleteRule(db: Db, id: number): Promise<void> {
+  await db.runAsync('DELETE FROM category_rules WHERE id = ?', [id]);
+}
+
+/** Parses a statement and decides, line by line, what to add / link / skip. Nothing is written. */
+export async function prepareImport(db: Db, parsed: ParsedTx[]): Promise<ImportPlan> {
+  if (!parsed.length) return { rows: [], alreadyImported: 0 };
+  const dates = parsed.map((p) => p.date).sort();
+  const keys = new Set(
+    (await db.getAllAsync<{ k: string }>(
+      'SELECT import_key AS k FROM transactions WHERE import_key IS NOT NULL UNION SELECT key AS k FROM import_ignored',
+      [],
+    )).map((r) => r.k),
+  );
+  const unlinked = await db.getAllAsync<ExistingTx>(
+    `SELECT id, type, amount, date FROM transactions
+     WHERE import_key IS NULL AND date BETWEEN date(?, '-5 days') AND date(?, '+5 days')`,
+    [dates[0], dates[dates.length - 1]],
+  );
+  return planImport(parsed, keys, unlinked, await listRules(db));
+}
+
+export interface ImportResult {
+  added: number;
+  linked: number;
+  ignored: number;
+  rulesLearned: number;
+}
+
+/**
+ * Writes the reviewed plan. `edited` holds the keys of rows whose category/type the user changed:
+ * their keyword is remembered as a rule for next imports.
+ */
+export async function applyImport(db: Db, rows: PlannedRow[], edited: Set<string>): Promise<ImportResult> {
+  const result: ImportResult = { added: 0, linked: 0, ignored: 0, rulesLearned: 0 };
+  await db.withTransactionAsync(async () => {
+    for (const r of rows) {
+      if (!r.include) {
+        if (r.matchId) {
+          await db.runAsync('UPDATE transactions SET import_key = ? WHERE id = ? AND import_key IS NULL', [r.key, r.matchId]);
+          result.linked++;
+        } else {
+          await db.runAsync('INSERT OR IGNORE INTO import_ignored (key) VALUES (?)', [r.key]);
+          result.ignored++;
+        }
+        continue;
+      }
+      const res = await db.runAsync(
+        'INSERT INTO transactions (type, amount, category_id, date, note, import_key) VALUES (?, ?, ?, ?, ?, ?)',
+        [r.type, r.amount, r.type === 'sale' ? null : r.categoryId, r.date, r.label, r.key],
+      );
+      if (r.type === 'expense') await linkImportedToRecurring(db, res.lastInsertRowId, r.amount, r.date);
+      result.added++;
+      if (edited.has(r.key)) {
+        const keyword = keywordFromLabel(r.rawLabel);
+        if (keyword && (r.type === 'sale' || r.categoryId)) {
+          await saveRule(db, keyword, r.type, r.type === 'sale' ? null : r.categoryId);
+          result.rulesLearned++;
+        }
+      }
+    }
+  });
+  return result;
 }
 
 // ─── CSV export ──────────────────────────────────────────────────────────────

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Text, View } from 'react-native';
 import { Button, Card, Muted, Screen, SectionTitle, styles, useDb, useOnFocus } from '../../components/ui.tsx';
 import { monthSummary, type MonthSummary } from '../../db/repo.ts';
@@ -15,13 +15,13 @@ export default function StatsScreen() {
   const [prev, setPrev] = useState<MonthSummary | null>(null);
   const [history, setHistory] = useState<MonthSummary[]>([]);
 
-  useOnFocus(async () => {
+  useOnFocus(useCallback(async () => {
     const months = Array.from({ length: 6 }, (_, i) => addMonths(month, i - 5));
     const all = await Promise.all([addMonths(month, -6), ...months].map((m) => monthSummary(db, m)));
     setPrev(all[all.length - 2]);
     setCur(all[all.length - 1]);
     setHistory(all.slice(1));
-  }, [db, month]);
+  }, [db, month]));
 
   const spent = (cur?.byCategory ?? []).filter((c) => c.spent > 0).sort((a, b) => b.spent - a.spent);
   const maxSpent = Math.max(1, ...spent.map((c) => c.spent));

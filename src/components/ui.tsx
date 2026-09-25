@@ -27,10 +27,9 @@ export function closeScreen() {
   else router.replace('/');
 }
 
-/** Runs `load` every time the screen gets focus (e.g. after closing the add modal). */
-export function useOnFocus(load: () => void | Promise<void>, deps: unknown[]) {
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useFocusEffect(useCallback(() => { void load(); }, deps));
+/** Runs `load` (a useCallback) every time the screen gets focus, and again when it changes. */
+export function useOnFocus(load: () => void | Promise<void>) {
+  useFocusEffect(useCallback(() => { void load(); }, [load]));
 }
 
 export function Screen({ children, padBottom = 100 }: { children: ReactNode; padBottom?: number }) {

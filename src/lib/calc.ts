@@ -164,3 +164,48 @@ export function toCsv(header: string[], rows: (string | number | null | undefine
   // BOM so Excel opens UTF-8 accents correctly.
   return '﻿' + [header, ...rows].map((r) => r.map(csvCell).join(';')).join('\r\n') + '\r\n';
 }
+
+export interface SavingsPoint {
+  month: number;
+  balance: number;
+  /** Initial capital + all monthly deposits so far (no interest). */
+  contributed: number;
+}
+
+/**
+ * Month-by-month projection: a deposit at the end of every month, interest compounded monthly
+ * at annualRate / 12 (the usual approximation for savings simulators).
+ */
+export function simulateSavings(monthly: number, years: number, annualRatePct: number, initial = 0): SavingsPoint[] {
+  const r = annualRatePct / 100 / 12;
+  const points: SavingsPoint[] = [{ month: 0, balance: round2(initial), contributed: round2(initial) }];
+  let balance = initial;
+  let contributed = initial;
+  for (let m = 1; m <= Math.round(years * 12); m++) {
+    balance = balance * (1 + r) + monthly;
+    contributed += monthly;
+    points.push({ month: m, balance: round2(balance), contributed: round2(contributed) });
+  }
+  return points;
+}
+
+/** Months needed to reach `target` (null if never, within 100 years). */
+export function monthsToReach(target: number, monthly: number, annualRatePct: number, initial = 0): number | null {
+  if (initial >= target) return 0;
+  const r = annualRatePct / 100 / 12;
+  let balance = initial;
+  for (let m = 1; m <= 1200; m++) {
+    balance = balance * (1 + r) + monthly;
+    if (balance >= target - 0.005) return m;
+  }
+  return null;
+}
+
+/** "3 ans et 4 mois", "8 mois", "1 an". */
+export function formatDuration(months: number): string {
+  const y = Math.floor(months / 12);
+  const m = months % 12;
+  const ys = y ? `${y} an${y > 1 ? 's' : ''}` : '';
+  const ms = m ? `${m} mois` : '';
+  return [ys, ms].filter(Boolean).join(' et ') || '0 mois';
+}

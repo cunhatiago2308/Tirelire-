@@ -30,6 +30,7 @@ export interface Transaction {
   date: string;
   note: string | null;
   recurring_id: number | null;
+  import_key: string | null;
 }
 
 export interface TransactionRow extends Transaction {
@@ -65,4 +66,13 @@ export interface SavingsEntry {
   amount: number;
   note: string | null;
   auto_month: string | null;
+}
+
+export interface RuleRow {
+  id: number;
+  pattern: string;
+  kind: 'expense' | 'income' | 'sale' | 'ignore';
+  category_id: number | null;
+  category_name: string | null;
+  category_color: string | null;
 }

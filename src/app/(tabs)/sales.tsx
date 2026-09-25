@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { View } from 'react-native';
 import { Fab } from '../../components/Fab.tsx';
 import { TxRow } from '../../components/TxRow.tsx';
@@ -19,9 +19,9 @@ export default function SalesScreen() {
   const current = monthOf(todayStr());
   const month = period === 'month' ? current : period === 'prev' ? addMonths(current, -1) : null;
 
-  useOnFocus(async () => {
+  useOnFocus(useCallback(async () => {
     setSales(await listTransactions(db, { type: 'sale', month, limit: 5000 }));
-  }, [db, month]);
+  }, [db, month]));
 
   const s = summarizeSales(sales);
   const missing = s.count - s.withMarginCount;

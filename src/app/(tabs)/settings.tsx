@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Alert, Pressable, Text, View } from 'react-native';
 import { router, type Href } from 'expo-router';
 import { Button, Card, Muted, Screen, SectionTitle, SwitchRow, useDb, useOnFocus } from '../../components/ui.tsx';
@@ -16,12 +16,12 @@ export default function SettingsScreen() {
   const [autoSavings, setAutoSavings] = useState(true);
   const [exporting, setExporting] = useState(false);
 
-  useOnFocus(async () => {
+  useOnFocus(useCallback(async () => {
     setCategories(await getCategories(db));
     setRecurring(await listRecurring(db));
     setGoal(await getGoal(db));
     setAutoSavings((await getSetting(db, 'auto_savings')) === '1');
-  }, [db]);
+  }, [db]));
 
   const doExport = async () => {
     setExporting(true);
@@ -82,6 +82,7 @@ export default function SettingsScreen() {
           right={goal ? formatMoney(goal.target, { decimals: false }) : 'Créer'}
           onPress={() => router.push('/goal')}
         />
+        <Row color={colors.sale} title="Simulateur d'épargne" right="courbe" onPress={() => router.push('/simulator')} />
         <SwitchRow
           label="Alimentation automatique"
           hint="En fin de mois, le solde net positif est versé dans l'objectif."
@@ -91,6 +92,16 @@ export default function SettingsScreen() {
             await setSetting(db, 'auto_savings', v ? '1' : '0');
           }}
         />
+      </Card>
+
+      <Card style={{ gap: 4 }}>
+        <SectionTitle>Relevé bancaire</SectionTitle>
+        <Muted>
+          Importe l'export CSV ou OFX de ta banque : opérations catégorisées automatiquement, sans doublons. Seules les
+          espèces restent à saisir à la main.
+        </Muted>
+        <Row color={colors.primary} title="Importer un relevé" right="CSV / OFX" onPress={() => router.push('/import')} />
+        <Row color={colors.muted} title="Règles de catégorisation" right="" onPress={() => router.push('/rules')} />
       </Card>
 
       <Card>

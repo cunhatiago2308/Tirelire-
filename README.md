@@ -13,14 +13,39 @@ plutôt qu'un simple solde brut.
 | Écran | Contenu |
 |---|---|
 | **Accueil** | « Dispo aujourd'hui » = (solde du mois − dépenses fixes à venir) / jours restants (aujourd'hui compris) · boutons rapides Dépense / Revenu / Vente · alertes d'enveloppes · jauges par catégorie · objectif d'épargne |
-| **Historique** | Liste chronologique groupée par jour, filtres par type (dépense / revenu / vente) et par catégorie. Touche une ligne pour la modifier ou la supprimer |
+| **Historique** | Liste chronologique groupée par jour, filtres par type (dépense / revenu / vente) et par catégorie. Touche une ligne pour la modifier ou la supprimer. Bouton « Importer un relevé » en haut |
 | **Ventes** | Total encaissé, marge totale, marge moyenne par vente, taux de marge (ce mois / mois dernier / tout) |
 | **Stats** | Navigation mois par mois : revenus (dont ventes), dépenses, solde net, comparaison en % avec le mois précédent (▲ mieux / ▼ moins bien), barres par catégorie, solde net sur 6 mois |
-| **Réglages** | Catégories (dépenses et revenus) et budgets mensuels, dépenses fixes, objectif d'épargne, export CSV |
+| **Réglages** | Catégories (dépenses et revenus) et budgets mensuels, dépenses fixes, objectif d'épargne, simulateur, import de relevé, règles de catégorisation, export CSV |
+| **Simulateur d'épargne** | De 0 à 3 000 €/mois, de 1 à 40 ans, taux de 0 à 10 % : courbe de l'épargne totale vs argent versé (glisser le doigt pour lire chaque mois), étapes 1/2/5/10… ans, délai pour atteindre l'objectif |
+| **Import de relevé** | Fichier CSV ou OFX exporté depuis la banque → aperçu, catégorisation automatique, import sans doublons |
 
 **Saisie rapide (2 taps)** : le bouton flottant **+** (présent sur Accueil, Historique, Ventes) ouvre la saisie avec le clavier
 déjà ouvert → tape le montant → **touche une catégorie = enregistré** (date du jour par défaut).
 « + Date, note, dépense fixe… » ouvre les options (date, note, rendre la dépense mensuelle).
+
+### Import de relevé bancaire (au lieu de tout saisir)
+
+Pas de connexion bancaire (payant, serveur obligatoire, données sensibles) : on importe le **fichier exporté par la banque**,
+lu uniquement sur le téléphone. Seules les **espèces** restent à saisir avec **+**.
+
+1. Dans l'app / le site de la banque : « Exporter / Télécharger mes opérations » → **CSV** (ou Excel-CSV) ou **OFX**
+2. Tirelire → Historique → **⤓ Importer un relevé** → choisir le fichier
+3. Vérifier l'aperçu, corriger les catégories si besoin → **Importer**
+
+- **Formats reconnus** : CSV avec `;` `,` ou tabulation, avec ou sans ligne d'en-tête, colonne « Montant » signée ou
+  colonnes « Débit » / « Crédit » séparées, dates `JJ/MM/AAAA`, `JJ/MM/AA` ou `AAAA-MM-JJ`, UTF-8 ou Latin-1 (accents
+  des exports Windows). OFX/QFX (utilise l'identifiant unique de chaque opération). Lignes d'en-tête/de solde ignorées
+- **Pas de doublons** : chaque ligne a une empreinte ; réimporter un relevé qui chevauche le précédent n'ajoute que les nouvelles
+  opérations. Une opération déjà saisie à la main (même montant, ± 4 jours) est reliée au lieu d'être ajoutée
+- **Catégorisation automatique sans IA** : des mots-clés (Carrefour, Lidl → Nourriture ; SNCF, Uber → Transport ;
+  Netflix, Free → Abonnements ; Vinted, Leboncoin → **Vente** ; CAF, Crous → Bourse / aides ; virements vers Livret A → ignorés…).
+  Quand tu changes la catégorie d'une ligne, le mot-clé est **retenu** pour les prochains imports. Règles modifiables dans
+  Réglages → Règles de catégorisation
+- **Dépenses fixes** : un prélèvement importé du même montant (± 5 jours autour du jour prévu) compte comme la dépense fixe
+  du mois, elle n'est donc ni générée en double ni encore déduite du « dispo »
+- Les virements Vinted/Leboncoin importés arrivent comme **ventes** sans prix d'achat : touche-les dans l'Historique pour
+  ajouter le prix d'achat et obtenir la marge
 
 ### Règles de calcul
 
@@ -57,6 +82,7 @@ Fournitures 30 €, Logement, Abonnements, Divers + 4 catégories de revenus). T
 ```bash
 npm test            # tests des calculs et de la base SQLite (node:test + node:sqlite, sans téléphone)
 npm run typecheck   # vérification TypeScript
+npm run lint        # ESLint (config Expo)
 ```
 
 ## Structure
@@ -71,7 +97,8 @@ src/
     goal.tsx           # objectif d'épargne + mouvements
   components/          # UI réutilisable (jauges, chips, bouton +, …)
   db/                  # schéma SQLite, migrations, requêtes (repo.ts)
-  lib/                 # calculs purs : dates, montants, dispo/jour, marges, CSV
+  lib/                 # calculs purs : dates, montants, dispo/jour, marges, CSV, simulateur
+    bankImport.ts      # lecture des relevés CSV/OFX, nettoyage des libellés, règles, anti-doublons
 tests/                 # tests Node exécutés sur une vraie base SQLite en mémoire
 ```
 
@@ -79,6 +106,10 @@ tests/                 # tests Node exécutés sur une vraie base SQLite en mém
 
 - **Widget écran d'accueil** : impossible avec Expo Go (nécessite du code natif + un development build). Remplacé par le bouton flottant **+**
 - **Notifications système** pour les enveloppes : non implémentées (alertes visuelles dans l'app uniquement), pour rester sans permission ni module natif en plus
-- **Import CSV** : l'export existe, la réimportation sur un nouveau téléphone n'est pas encore faite
+- **Restauration** : l'export CSV de Tirelire n'est pas encore réimportable tel quel sur un nouveau téléphone
+- **Import de relevé** : testé sur des formats CSV/OFX typiques, pas encore sur l'export réel de chaque banque ; si un fichier
+  n'est pas reconnu, le message d'erreur l'indique (envoie un exemple anonymisé pour ajouter le format)
+- Une ligne décochée à l'import est mémorisée comme ignorée et ne sera plus proposée
+- Simulateur : intérêts mensuels (taux ÷ 12), sans impôts, inflation ni règles propres au Livret A (quinzaines) → ordre de grandeur
 - Un seul objectif d'épargne à la fois
 - Le versement automatique d'un mois est figé une fois fait : si tu modifies ensuite une opération de ce mois, ajuste l'épargne à la main

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { ScrollView, SectionList, Text, View } from 'react-native';
 import { Fab } from '../../components/Fab.tsx';
 import { TxRow } from '../../components/TxRow.tsx';
@@ -17,10 +17,10 @@ export default function HistoryScreen() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [rows, setRows] = useState<TransactionRow[]>([]);
 
-  useOnFocus(async () => {
+  useOnFocus(useCallback(async () => {
     setCategories(await getCategories(db));
     setRows(await listTransactions(db, { type, categoryId, limit: 1000 }));
-  }, [db, type, categoryId]);
+  }, [db, type, categoryId]));
 
   const sections = useMemo(() => {
     const byDate = new Map<string, TransactionRow[]>();

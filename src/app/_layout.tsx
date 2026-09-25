@@ -23,6 +23,9 @@ export default function RootLayout() {
         <Stack.Screen name="category/[id]" options={{ presentation: 'modal', title: 'Catégorie' }} />
         <Stack.Screen name="recurring/[id]" options={{ presentation: 'modal', title: 'Dépense fixe' }} />
         <Stack.Screen name="goal" options={{ presentation: 'modal', title: "Objectif d'épargne" }} />
+        <Stack.Screen name="import" options={{ title: 'Relevé bancaire' }} />
+        <Stack.Screen name="rules" options={{ title: 'Règles de catégorisation' }} />
+        <Stack.Screen name="simulator" options={{ title: "Simulateur d'épargne" }} />
       </Stack>
     </SQLiteProvider>
   );

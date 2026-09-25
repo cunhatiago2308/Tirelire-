@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { Link, router } from 'expo-router';
 import { AmountModal } from '../../components/AmountModal.tsx';
@@ -40,7 +40,7 @@ export default function HomeScreen() {
   const [saved, setSaved] = useState(0);
   const [adjusting, setAdjusting] = useState(false);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const t = todayStr();
     setToday(t);
     await runDailyJobs(db, t);
@@ -54,8 +54,8 @@ export default function HomeScreen() {
     setEnvelopes(s.byCategory.filter((c) => c.budget != null && c.budget > 0));
     setGoal(g);
     setSaved(total);
-  };
-  useOnFocus(load, [db]);
+  }, [db]);
+  useOnFocus(load);
 
   const alerts = envelopes.filter((e) => gaugeLevel(e.spent, e.budget!) !== 'ok');
   const perDayColor = !avail ? colors.text : avail.perDay < 0 ? colors.red : avail.perDay < 5 ? colors.orange : colors.green;
@@ -157,6 +157,9 @@ export default function HomeScreen() {
           ) : (
             <Muted>Fixe un montant cible : chaque mois terminé avec un solde positif l'alimente automatiquement.</Muted>
           )}
+          <Link href="/simulator" style={{ color: colors.primary, fontWeight: '600' }}>
+            📈 Simuler : combien j'aurais en épargnant chaque mois ?
+          </Link>
         </Card>
       </Screen>
       <Fab />

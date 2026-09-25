@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Alert, Pressable, Text, View } from 'react-native';
 import { closeScreen, Button, Card, Field, Muted, Screen, SectionTitle, useDb } from '../components/ui.tsx';
 import { deleteGoal, deleteSavingsEntry, getGoal, listSavingsEntries, saveGoal } from '../db/repo.ts';
@@ -15,7 +15,7 @@ export default function GoalScreen() {
   const [deadline, setDeadline] = useState('');
   const [entries, setEntries] = useState<SavingsEntry[]>([]);
 
-  const loadEntries = () => listSavingsEntries(db).then(setEntries);
+  const loadEntries = useCallback(() => listSavingsEntries(db).then(setEntries), [db]);
 
   useEffect(() => {
     getGoal(db).then((g) => {
@@ -26,7 +26,7 @@ export default function GoalScreen() {
       setDeadline(g.deadline ?? '');
     });
     loadEntries();
-  }, [db]);
+  }, [db, loadEntries]);
 
   const target = parseAmount(targetText);
   const deadlineValid = deadline.trim() === '' || isValidDateStr(deadline.trim());
