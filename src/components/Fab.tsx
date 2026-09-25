@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, Text } from 'react-native';
 import { router } from 'expo-router';
 import type { TxType } from '../db/types.ts';
-import { colors } from '../theme.ts';
+import { colors, onColor } from '../theme.ts';
 
 /** Floating "+" button, always reachable: opens the quick-add sheet. */
 export function Fab({ type }: { type?: TxType }) {
@@ -33,5 +33,5 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 6,
   },
-  plus: { color: '#fff', fontSize: 34, lineHeight: 38, fontWeight: '300' },
+  plus: { color: onColor(colors.primary), fontSize: 34, lineHeight: 38, fontWeight: '300' },
 });

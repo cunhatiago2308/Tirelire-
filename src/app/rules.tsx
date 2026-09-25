@@ -1,10 +1,11 @@
 import { useCallback, useState } from 'react';
-import { Alert, Pressable, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { Button, Card, Chip, Field, Muted, Screen, SectionTitle, styles, useDb, useOnFocus } from '../components/ui.tsx';
 import { deleteRule, getCategories, listRules, saveRule } from '../db/repo.ts';
 import type { Category, RuleRow } from '../db/types.ts';
 import type { RuleKind } from '../lib/bankImport.ts';
 import { colors } from '../theme.ts';
+import { confirmAction } from '../lib/dialogs.ts';
 
 type Target = { kind: RuleKind; categoryId: number | null };
 
@@ -37,10 +38,10 @@ export default function RulesScreen() {
   };
 
   const remove = (r: RuleRow) =>
-    Alert.alert(`Supprimer la règle « ${r.pattern} » ?`, undefined, [
-      { text: 'Annuler', style: 'cancel' },
-      { text: 'Supprimer', style: 'destructive', onPress: async () => { await deleteRule(db, r.id); load(); } },
-    ]);
+    confirmAction(`Supprimer la règle « ${r.pattern} » ?`, undefined, 'Supprimer', async () => {
+      await deleteRule(db, r.id);
+      load();
+    });
 
   const isTarget = (kind: RuleKind, categoryId: number | null) => target?.kind === kind && target.categoryId === categoryId;
 

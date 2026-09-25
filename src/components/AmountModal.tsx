@@ -65,7 +65,7 @@ function AmountForm({ title, allowNegative, onCancel, onSubmit }: {
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'center', padding: 24 },
-  sheet: { backgroundColor: colors.card, borderRadius: 18, padding: 20, gap: 14 },
+  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', padding: 24 },
+  sheet: { backgroundColor: colors.cardHigh, borderRadius: 18, padding: 20, gap: 14 },
   title: { fontSize: 18, fontWeight: '700', color: colors.text },
 });

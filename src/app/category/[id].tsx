@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { closeScreen, Button, Card, Field, Muted, Screen, styles, useDb } from '../../components/ui.tsx';
 import { countCategoryUsage, deleteCategory, getCategory, saveCategory } from '../../db/repo.ts';
@@ -7,6 +7,7 @@ import { CATEGORY_COLORS } from '../../db/schema.ts';
 import type { CategoryKind } from '../../db/types.ts';
 import { amountToInput, parseAmount } from '../../lib/money.ts';
 import { colors } from '../../theme.ts';
+import { confirmAction } from '../../lib/dialogs.ts';
 
 export default function CategoryScreen() {
   const db = useDb();
@@ -39,13 +40,11 @@ export default function CategoryScreen() {
   const remove = async () => {
     if (!id) return;
     const n = await countCategoryUsage(db, id);
-    Alert.alert(
+    confirmAction(
       `Supprimer « ${name} » ?`,
       n ? `${n} opération${n > 1 ? 's' : ''} garderont leur montant mais passeront « Sans catégorie ».` : undefined,
-      [
-        { text: 'Annuler', style: 'cancel' },
-        { text: 'Supprimer', style: 'destructive', onPress: async () => { await deleteCategory(db, id); closeScreen(); } },
-      ],
+      'Supprimer',
+      async () => { await deleteCategory(db, id); closeScreen(); },
     );
   };
 

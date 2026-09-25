@@ -1,0 +1,36 @@
+# Render Blueprint: the web version of the app as a free static site.
+# Render dashboard → New → Blueprint → pick this repository (see README "Mettre l'appli en ligne").
+services:
+  - type: web
+    name: marge
+    runtime: static
+    buildCommand: npm ci && npm run build:web
+    staticPublishPath: ./dist
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: EXPO_NO_TELEMETRY
+        value: "1"
+    headers:
+      # Required by the on-device SQLite database (SharedArrayBuffer).
+      - path: /*
+        name: Cross-Origin-Opener-Policy
+        value: same-origin
+      - path: /*
+        name: Cross-Origin-Embedder-Policy
+        value: require-corp
+      # New versions are picked up right away; hashed build files are cached forever.
+      - path: /sw.js
+        name: Cache-Control
+        value: no-cache
+      - path: /index.html
+        name: Cache-Control
+        value: no-cache
+      - path: /_expo/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+    routes:
+      # Single-page app: every route is handled by index.html.
+      - type: rewrite
+        source: /*
+        destination: /index.html

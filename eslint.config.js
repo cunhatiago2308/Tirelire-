@@ -8,6 +8,11 @@ module.exports = defineConfig([
     ignores: ["dist/*"],
   },
   {
+    // Node scripts (build tooling)
+    files: ["scripts/**/*.js"],
+    languageOptions: { globals: { __dirname: "readonly", require: "readonly", process: "readonly", console: "readonly" } },
+  },
+  {
     // French UI text is full of apostrophes; only guard against the characters that really break JSX.
     rules: { "react/no-unescaped-entities": ["error", { forbid: [">", "}"] }] },
   },

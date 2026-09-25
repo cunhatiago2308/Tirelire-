@@ -15,7 +15,7 @@ import { useSQLiteContext } from 'expo-sqlite';
 import type { Db } from '../db/types.ts';
 import { gaugeLevel } from '../lib/calc.ts';
 import { formatMoney } from '../lib/money.ts';
-import { colors, levelColor, radius } from '../theme.ts';
+import { colors, levelColor, onColor, radius } from '../theme.ts';
 
 export function useDb(): Db {
   return useSQLiteContext();
@@ -83,8 +83,8 @@ export function Chip({
         pressed && { opacity: 0.7 },
       ]}
     >
-      {dot && <View style={[styles.dot, { backgroundColor: selected ? '#fff' : dot }]} />}
-      <Text style={[styles.chipText, selected && { color: '#fff' }]}>{label}</Text>
+      {dot && <View style={[styles.dot, { backgroundColor: selected ? onColor(color) : dot }]} />}
+      <Text style={[styles.chipText, selected && { color: onColor(color), fontWeight: '600' }]}>{label}</Text>
     </Pressable>
   );
 }
@@ -103,7 +103,7 @@ export function Button({
   style?: ViewStyle;
 }) {
   const bg = variant === 'primary' ? colors.primary : variant === 'danger' ? colors.redSoft : colors.primarySoft;
-  const fg = variant === 'primary' ? '#fff' : variant === 'danger' ? colors.red : colors.primary;
+  const fg = variant === 'primary' ? onColor(colors.primary) : variant === 'danger' ? colors.red : colors.primary;
   return (
     <Pressable
       onPress={onPress}
@@ -123,7 +123,7 @@ export function Field({ label, hint, ...props }: TextInputProps & { label: strin
   return (
     <View style={{ gap: 6 }}>
       <Text style={styles.label}>{label}</Text>
-      <TextInput placeholderTextColor="#9CA3AF" {...props} style={[styles.input, props.style]} />
+      <TextInput placeholderTextColor="#5C5C60" {...props} style={[styles.input, props.style]} />
       {hint && <Muted>{hint}</Muted>}
     </View>
   );
@@ -203,11 +203,8 @@ export const styles = StyleSheet.create({
     borderRadius: radius,
     padding: 16,
     gap: 12,
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 1,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   sectionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   sectionTitle: { fontSize: 17, fontWeight: '700', color: colors.text },
@@ -238,7 +235,7 @@ export const styles = StyleSheet.create({
     color: colors.text,
   },
   switchRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  track: { backgroundColor: '#EEF0F4', overflow: 'hidden' },
+  track: { backgroundColor: colors.cardHigh, overflow: 'hidden' },
   gaugeHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

@@ -22,10 +22,10 @@ export function TxRow({ tx, showDate = false }: { tx: TransactionRow; showDate?:
   return (
     <Pressable
       onPress={() => router.push({ pathname: '/add', params: { id: String(tx.id) } })}
-      style={({ pressed }) => [styles.row, pressed && { backgroundColor: '#F9FAFB' }]}
+      style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.cardHigh }]}
     >
-      <View style={[styles.icon, { backgroundColor: tx.type === 'expense' ? (tx.category_color ?? '#9CA3AF') + '22' : meta.soft }]}>
-        <View style={[styles.dot, { backgroundColor: tx.type === 'expense' ? tx.category_color ?? '#9CA3AF' : meta.color }]} />
+      <View style={[styles.icon, { backgroundColor: tx.type === 'expense' ? (tx.category_color ?? colors.muted) + '22' : meta.soft }]}>
+        <View style={[styles.dot, { backgroundColor: tx.type === 'expense' ? tx.category_color ?? colors.muted : meta.color }]} />
       </View>
       <View style={{ flex: 1 }}>
         <Text style={styles.title} numberOfLines={1}>{title}</Text>

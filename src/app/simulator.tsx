@@ -7,7 +7,7 @@ import { getGoal, savingsTotal } from '../db/repo.ts';
 import type { SavingsGoal } from '../db/types.ts';
 import { formatDuration, monthsToReach, simulateSavings } from '../lib/calc.ts';
 import { formatMoney } from '../lib/money.ts';
-import { colors } from '../theme.ts';
+import { colors, onColor } from '../theme.ts';
 
 const MAX_MONTHLY = 3000;
 const PRESETS = [10, 30, 50, 100, 200, 500];
@@ -79,7 +79,7 @@ export default function SimulatorScreen() {
         <View style={styles.wrap}>
           {PRESETS.map((p) => (
             <Pressable key={p} onPress={() => setMonthlyValue(p)} style={[chip, monthly === p && chipOn]}>
-              <Text style={{ color: monthly === p ? '#fff' : colors.text, fontSize: 13 }}>{p} €</Text>
+              <Text style={{ color: monthly === p ? onColor(colors.primary) : colors.text, fontSize: 13 }}>{p} €</Text>
             </Pressable>
           ))}
         </View>

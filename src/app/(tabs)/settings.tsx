@@ -1,12 +1,13 @@
 import { useCallback, useState } from 'react';
-import { Alert, Pressable, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { router, type Href } from 'expo-router';
 import { Button, Card, Muted, Screen, SectionTitle, SwitchRow, useDb, useOnFocus } from '../../components/ui.tsx';
 import { getCategories, getGoal, getSetting, listRecurring, setSetting } from '../../db/repo.ts';
 import type { Category, RecurringRow, SavingsGoal } from '../../db/types.ts';
 import { shareCsvExport } from '../../lib/exportFile.ts';
 import { formatMoney } from '../../lib/money.ts';
-import { colors } from '../../theme.ts';
+import { APP_NAME, colors } from '../../theme.ts';
+import { notify } from '../../lib/dialogs.ts';
 
 export default function SettingsScreen() {
   const db = useDb();
@@ -28,7 +29,7 @@ export default function SettingsScreen() {
     try {
       await shareCsvExport(db);
     } catch (e) {
-      Alert.alert('Export impossible', e instanceof Error ? e.message : String(e));
+      notify('Export impossible', e instanceof Error ? e.message : String(e));
     } finally {
       setExporting(false);
     }
@@ -65,7 +66,7 @@ export default function SettingsScreen() {
         {recurring.map((r) => (
           <Row
             key={r.id}
-            color={r.category_color ?? '#9CA3AF'}
+            color={r.category_color ?? colors.muted}
             title={`${r.label}${r.active ? '' : ' (en pause)'}`}
             right={`${formatMoney(r.amount)} · le ${r.day}`}
             onPress={() => router.push({ pathname: '/recurring/[id]', params: { id: String(r.id) } })}
@@ -113,7 +114,7 @@ export default function SettingsScreen() {
         <Button title={exporting ? 'Export…' : 'Exporter en CSV'} onPress={doExport} disabled={exporting} />
       </Card>
 
-      <Muted style={{ textAlign: 'center' }}>Tirelire · 100 % local · sans pub, sans IA, sans compte</Muted>
+      <Muted style={{ textAlign: 'center' }}>{APP_NAME} · 100 % local · sans pub, sans IA, sans compte</Muted>
     </Screen>
   );
 }

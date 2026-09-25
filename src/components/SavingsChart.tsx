@@ -5,9 +5,9 @@ import type { SavingsPoint } from '../lib/calc.ts';
 import { formatMoney } from '../lib/money.ts';
 import { colors } from '../theme.ts';
 
-// Validated pair (CVD-safe, ≥ 3:1 on white). Contributions are also dashed, so identity is never colour-only.
-export const CHART_TOTAL = '#4F46E5';
-export const CHART_CONTRIB = '#0D9488';
+// Validated pair for the dark card (CVD-safe, ≥ 3:1 contrast). Contributions are also dashed: identity is never colour-only.
+export const CHART_TOTAL = '#16A34A';
+export const CHART_CONTRIB = '#3B82F6';
 
 const HEIGHT = 200;
 const TOP = 12;
@@ -81,12 +81,12 @@ export function SavingsChart({ points }: { points: SavingsPoint[] }) {
             {[0, 0.5, 1].map((f) => (
               <Line key={f} x1={LEFT} x2={width} y1={y(max * f)} y2={y(max * f)} stroke={colors.border} strokeWidth={1} />
             ))}
-            <Path d={area} fill={CHART_TOTAL} fillOpacity={0.1} />
+            <Path d={area} fill={CHART_TOTAL} fillOpacity={0.18} />
             <Path d={line('contributed')} stroke={CHART_CONTRIB} strokeWidth={2} strokeDasharray="6 4" fill="none" />
             <Path d={line('balance')} stroke={CHART_TOTAL} strokeWidth={2} fill="none" strokeLinejoin="round" />
             <Line x1={x(idx)} x2={x(idx)} y1={TOP} y2={HEIGHT} stroke={colors.muted} strokeWidth={1} strokeDasharray="2 3" />
-            <Circle cx={x(idx)} cy={y(cur.contributed)} r={4} fill={CHART_CONTRIB} stroke="#fff" strokeWidth={2} />
-            <Circle cx={x(idx)} cy={y(cur.balance)} r={5} fill={CHART_TOTAL} stroke="#fff" strokeWidth={2} />
+            <Circle cx={x(idx)} cy={y(cur.contributed)} r={4} fill={CHART_CONTRIB} stroke={colors.card} strokeWidth={2} />
+            <Circle cx={x(idx)} cy={y(cur.balance)} r={5} fill={CHART_TOTAL} stroke={colors.card} strokeWidth={2} />
           </Svg>
         )}
         {/* Y axis labels */}

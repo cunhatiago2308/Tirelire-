@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Pressable, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { closeScreen, Button, Card, Field, Muted, Screen, SectionTitle, useDb } from '../components/ui.tsx';
 import { deleteGoal, deleteSavingsEntry, getGoal, listSavingsEntries, saveGoal } from '../db/repo.ts';
 import type { SavingsEntry } from '../db/types.ts';
 import { formatDateLong, isValidDateStr, monthLabel, todayStr } from '../lib/dates.ts';
 import { amountToInput, formatMoney, parseAmount } from '../lib/money.ts';
 import { colors } from '../theme.ts';
+import { confirmAction } from '../lib/dialogs.ts';
 
 export default function GoalScreen() {
   const db = useDb();
@@ -38,17 +39,17 @@ export default function GoalScreen() {
   };
 
   const remove = () => {
-    Alert.alert("Supprimer l'objectif ?", "L'historique d'épargne sera aussi effacé.", [
-      { text: 'Annuler', style: 'cancel' },
-      { text: 'Supprimer', style: 'destructive', onPress: async () => { await deleteGoal(db); closeScreen(); } },
-    ]);
+    confirmAction("Supprimer l'objectif ?", "L'historique d'épargne sera aussi effacé.", 'Supprimer', async () => {
+      await deleteGoal(db);
+      closeScreen();
+    });
   };
 
   const removeEntry = (e: SavingsEntry) => {
-    Alert.alert('Supprimer ce mouvement ?', `${formatMoney(e.amount, { sign: true })} du ${formatDateLong(e.date)}`, [
-      { text: 'Annuler', style: 'cancel' },
-      { text: 'Supprimer', style: 'destructive', onPress: async () => { await deleteSavingsEntry(db, e.id); loadEntries(); } },
-    ]);
+    confirmAction('Supprimer ce mouvement ?', `${formatMoney(e.amount, { sign: true })} du ${formatDateLong(e.date)}`, 'Supprimer', async () => {
+      await deleteSavingsEntry(db, e.id);
+      loadEntries();
+    });
   };
 
   return (

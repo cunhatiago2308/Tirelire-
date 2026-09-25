@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Alert, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { closeScreen, Button, Card, Chip, Field, Muted, Screen, styles, SwitchRow, useDb } from '../../components/ui.tsx';
 import { deleteRecurring, getCategories, getRecurring, saveRecurring } from '../../db/repo.ts';
@@ -7,6 +7,7 @@ import type { Category } from '../../db/types.ts';
 import { monthOf, todayStr } from '../../lib/dates.ts';
 import { amountToInput, parseAmount } from '../../lib/money.ts';
 import { colors } from '../../theme.ts';
+import { confirmAction } from '../../lib/dialogs.ts';
 
 export default function RecurringScreen() {
   const db = useDb();
@@ -54,10 +55,10 @@ export default function RecurringScreen() {
 
   const remove = () => {
     if (!id) return;
-    Alert.alert('Supprimer cette dépense fixe ?', 'Les dépenses déjà passées restent dans l\'historique.', [
-      { text: 'Annuler', style: 'cancel' },
-      { text: 'Supprimer', style: 'destructive', onPress: async () => { await deleteRecurring(db, id); closeScreen(); } },
-    ]);
+    confirmAction('Supprimer cette dépense fixe ?', "Les dépenses déjà passées restent dans l'historique.", 'Supprimer', async () => {
+      await deleteRecurring(db, id);
+      closeScreen();
+    });
   };
 
   return (

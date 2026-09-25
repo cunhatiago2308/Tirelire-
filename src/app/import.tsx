@@ -289,6 +289,6 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)' },
-  sheet: { backgroundColor: colors.card, padding: 20, paddingBottom: 36, gap: 14, borderTopLeftRadius: 20, borderTopRightRadius: 20 },
+  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)' },
+  sheet: { backgroundColor: colors.cardHigh, padding: 20, paddingBottom: 36, gap: 14, borderTopLeftRadius: 20, borderTopRightRadius: 20 },
 });

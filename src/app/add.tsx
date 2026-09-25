@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Pressable, Text, TextInput, View } from 'react-native';
+import { Pressable, Text, TextInput, View } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { closeScreen, Button, Card, Chip, Field, Muted, Screen, styles, SwitchRow, useDb } from '../components/ui.tsx';
 import {
@@ -16,6 +16,7 @@ import { gaugeLevel, saleMargin, type GaugeLevel } from '../lib/calc.ts';
 import { addDays, dayOf, isValidDateStr, monthOf, relativeDayLabel, todayStr } from '../lib/dates.ts';
 import { amountToInput, formatMoney, parseAmount } from '../lib/money.ts';
 import { colors, typeMeta } from '../theme.ts';
+import { notify, confirmAction } from '../lib/dialogs.ts';
 
 const TYPES: TxType[] = ['expense', 'income', 'sale'];
 
@@ -88,7 +89,7 @@ export default function AddScreen() {
       const after = type === 'expense' ? await envelopeLevel(catId, monthOf(date)) : null;
       if (after?.cat && after.level !== 'ok' && after.level !== before?.level) {
         const { name, spent, budget } = after.cat;
-        Alert.alert(
+        notify(
           after.level === 'over' ? `🚨 Budget ${name} dépassé` : `⚠️ Budget ${name} bientôt atteint`,
           `${formatMoney(spent)} dépensés sur ${formatMoney(budget)} (${Math.round((spent / budget) * 100)} %).`,
         );
@@ -111,17 +112,10 @@ export default function AddScreen() {
 
   const confirmDelete = () => {
     if (!editId) return;
-    Alert.alert('Supprimer ?', 'Cette opération sera définitivement supprimée.', [
-      { text: 'Annuler', style: 'cancel' },
-      {
-        text: 'Supprimer',
-        style: 'destructive',
-        onPress: async () => {
-          await deleteTransaction(db, editId);
-          closeScreen();
-        },
-      },
-    ]);
+    confirmAction('Supprimer ?', 'Cette opération sera définitivement supprimée.', 'Supprimer', async () => {
+      await deleteTransaction(db, editId);
+      closeScreen();
+    });
   };
 
   const margin = amount != null ? saleMargin(amount, purchase) : null;
@@ -146,7 +140,7 @@ export default function AddScreen() {
             onChangeText={setAmountText}
             keyboardType="decimal-pad"
             placeholder="0"
-            placeholderTextColor="#D1D5DB"
+            placeholderTextColor="#3A3A3C"
             autoFocus={!editId}
             style={{ fontSize: 48, fontWeight: '800', color: meta.color, width: 220, textAlign: 'right', paddingRight: 6 }}
           />

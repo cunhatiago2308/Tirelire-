@@ -82,7 +82,7 @@ export default function HomeScreen() {
                 value={formatMoney(avail.balance)}
                 color={avail.balance < 0 ? colors.red : colors.text}
               />
-              <Stat label="Fixes à venir" value={`−${formatMoney(avail.upcomingFixed)}`} />
+              <Stat label="Fixes à venir" value={avail.upcomingFixed ? `−${formatMoney(avail.upcomingFixed)}` : formatMoney(0)} />
             </View>
           )}
           {avail && avail.upcomingItems.length > 0 && (
