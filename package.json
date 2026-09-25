@@ -1,0 +1,33 @@
+{
+  "name": "tirelire",
+  "version": "1.0.0",
+  "main": "expo-router/entry",
+  "dependencies": {
+    "expo": "~57.0.25",
+    "expo-constants": "~57.0.19",
+    "expo-file-system": "~57.0.7",
+    "expo-linking": "~57.0.11",
+    "expo-router": "~57.0.23",
+    "expo-sharing": "~57.0.22",
+    "expo-sqlite": "~57.0.3",
+    "expo-status-bar": "~57.0.1",
+    "react": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-screens": "~4.26.0"
+  },
+  "devDependencies": {
+    "@types/react": "~19.2.2",
+    "typescript": "~6.0.3"
+  },
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "test": "node --test --experimental-strip-types --no-warnings tests/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "tunnel": "expo start --tunnel"
+  },
+  "private": true
+}
