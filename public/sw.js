@@ -1,7 +1,7 @@
 // Offline support for the installed web app.
 // Pages: network first (always the latest version when online), cached copy when offline.
 // Build files (hashed names): cache first.
-const CACHE = 'marge-v1';
+const CACHE = 'tirelire-plus-v1';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();

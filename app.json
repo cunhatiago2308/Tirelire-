@@ -1,16 +1,16 @@
 {
   "expo": {
-    "name": "Marge",
-    "slug": "marge",
+    "name": "Tirelire+",
+    "slug": "tirelire-plus",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "scheme": "marge",
+    "scheme": "tirelireplus",
     "userInterfaceStyle": "dark",
     "backgroundColor": "#000000",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "app.marge.budget"
+      "bundleIdentifier": "app.tirelireplus.budget"
     },
     "android": {
       "adaptiveIcon": {
@@ -20,13 +20,13 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "app.marge.budget"
+      "package": "app.tirelireplus.budget"
     },
     "web": {
       "output": "single",
       "favicon": "./assets/favicon.png",
-      "name": "Marge",
-      "shortName": "Marge",
+      "name": "Tirelire+",
+      "shortName": "Tirelire+",
       "themeColor": "#000000",
       "backgroundColor": "#000000"
     },

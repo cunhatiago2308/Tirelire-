@@ -2,7 +2,7 @@ import type { GaugeLevel } from './lib/calc.ts';
 import type { TxType } from './db/types.ts';
 
 /** App name, shown in the UI. Also change "name" in app.json (store / home-screen name). */
-export const APP_NAME = 'Marge';
+export const APP_NAME = 'Tirelire+';
 
 // Mostly black, with green as the accent colour.
 export const colors = {

@@ -1,4 +1,4 @@
-# Marge.
+# Tirelire+
 
 Application mobile (noir & vert) de suivi de budget personnel, pensée pour un revenu irrégulier (revente d'occasion + études).
 Elle sépare les **ventes** (avec leur marge) des autres revenus et affiche l'**argent réellement disponible par jour**
@@ -32,7 +32,7 @@ Pas de connexion bancaire (payant, serveur obligatoire, données sensibles) : on
 lu uniquement sur le téléphone. Seules les **espèces** restent à saisir avec **+**.
 
 1. Dans l'app / le site de la banque : « Exporter / Télécharger mes opérations » → **CSV** (ou Excel-CSV) ou **OFX**
-2. Marge → Historique → **⤓ Importer un relevé** → choisir le fichier
+2. Tirelire+ → Historique → **⤓ Importer un relevé** → choisir le fichier
 3. Vérifier l'aperçu, corriger les catégories si besoin → **Importer**
 
 - **Formats reconnus** : CSV avec `;` `,` ou tabulation, avec ou sans ligne d'en-tête, colonne « Montant » signée ou
@@ -69,12 +69,12 @@ Aucun store, aucun compte développeur payant.
 
 1. Pousse ce dépôt sur GitHub (c'est déjà le cas) et fusionne la branche dans `main` (ou choisis la branche dans Render)
 2. Sur [render.com](https://render.com) : crée un compte gratuit → **New → Blueprint** → connecte GitHub → choisis ce dépôt.
-   Render lit `render.yaml` et crée le site statique **marge** tout seul (build : `npm ci && npm run build:web`)
-3. Attends la fin du build (quelques minutes) → Render donne une adresse du type `https://marge-xxxx.onrender.com`
+   Render lit `render.yaml` et crée le site statique **tirelire-plus** tout seul (build : `npm ci && npm run build:web`)
+3. Attends la fin du build (quelques minutes) → Render donne une adresse du type `https://tirelire-plus-xxxx.onrender.com`
 4. Sur le téléphone, ouvre cette adresse puis :
    - **iPhone (Safari)** : bouton **Partager** → **Sur l'écran d'accueil**
    - **Android (Chrome)** : menu **⋮** → **Installer l'application** (ou « Ajouter à l'écran d'accueil »)
-5. Lance **Marge** depuis l'icône : elle s'ouvre en plein écran, comme une appli
+5. Lance **Tirelire+** depuis l'icône : elle s'ouvre en plein écran, comme une appli
 
 Chaque `git push` sur la branche suivie redéploie automatiquement ; l'appli installée prend la nouvelle version à la
 réouverture suivante.
@@ -143,7 +143,7 @@ tests/                 # tests Node exécutés sur une vraie base SQLite en mém
 
 - **Widget écran d'accueil** : impossible avec Expo Go (nécessite du code natif + un development build). Remplacé par le bouton flottant **+**
 - **Notifications système** pour les enveloppes : non implémentées (alertes visuelles dans l'app uniquement), pour rester sans permission ni module natif en plus
-- **Restauration** : l'export CSV de Marge n'est pas encore réimportable tel quel sur un nouveau téléphone
+- **Restauration** : l'export CSV de Tirelire+ n'est pas encore réimportable tel quel sur un nouveau téléphone
 - **Import de relevé** : testé sur des formats CSV/OFX typiques, pas encore sur l'export réel de chaque banque ; si un fichier
   n'est pas reconnu, le message d'erreur l'indique (envoie un exemple anonymisé pour ajouter le format)
 - Une ligne décochée à l'import est mémorisée comme ignorée et ne sera plus proposée

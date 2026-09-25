@@ -12,8 +12,8 @@ const icon = (emoji: string) =>
 function BrandTitle() {
   return (
     <Text style={{ fontSize: 26, fontWeight: '900', color: colors.text, letterSpacing: -0.5 }}>
-      {APP_NAME}
-      <Text style={{ color: colors.primary }}>.</Text>
+      {APP_NAME.replace(/\+$/, '')}
+      <Text style={{ color: colors.primary }}>+</Text>
     </Text>
   );
 }

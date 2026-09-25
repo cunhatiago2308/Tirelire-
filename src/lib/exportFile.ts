@@ -8,7 +8,7 @@ import { todayStr } from './dates.ts';
 /** Writes the full history to a CSV file and opens the share sheet (Drive, mail, Files…). */
 export async function shareCsvExport(db: Db): Promise<void> {
   const csv = await exportCsv(db);
-  const name = `marge-${todayStr()}.csv`;
+  const name = `tirelire-${todayStr()}.csv`;
   if (Platform.OS === 'web') return shareOrDownloadOnWeb(csv, name);
   const file = new File(Paths.cache, name);
   if (file.exists) file.delete();

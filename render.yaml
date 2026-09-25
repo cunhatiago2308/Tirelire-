@@ -2,7 +2,7 @@
 # Render dashboard → New → Blueprint → pick this repository (see README "Mettre l'appli en ligne").
 services:
   - type: web
-    name: marge
+    name: tirelire-plus
     runtime: static
     buildCommand: npm ci && npm run build:web
     staticPublishPath: ./dist
