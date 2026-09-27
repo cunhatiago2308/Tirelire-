@@ -79,7 +79,10 @@ export default function RulesScreen() {
             <SectionTitle>{KIND_TITLES[kind]}</SectionTitle>
             {list.map((r) => (
               <Pressable key={r.id} onLongPress={() => remove(r)} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 7 }}>
-                <Text style={{ flex: 1, color: colors.text, fontWeight: '600' }}>{r.pattern}</Text>
+                <Text style={{ flex: 1, color: colors.text, fontWeight: '600' }}>
+                  {r.pattern}
+                  {r.scope === 'category' && <Text style={{ color: colors.muted, fontWeight: '400' }}> · catégorie banque</Text>}
+                </Text>
                 {r.category_name && (
                   <>
                     <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: r.category_color ?? colors.muted }} />

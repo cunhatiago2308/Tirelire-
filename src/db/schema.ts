@@ -65,6 +65,15 @@ const BANK_CATEGORY_RULES: RuleSeed[] = [
   ['expense', 'Sorties', ['TASTER']],
 ];
 
+/** Patterns of BANK_CATEGORY_RULES that are generic words, matched against the bank's category only. */
+const CATEGORY_SCOPE_PATTERNS = [
+  'ALIMENTATION', 'SUPERMARCHE', 'SUPERMARCHES', 'HYPERMARCHE', 'COURSES', 'RESTAURANTS', 'RESTAURATION',
+  'LOISIRS', 'SORTIES', 'BARS', 'SPECTACLES', 'TRANSPORTS', 'CARBURANT', 'CARBURANTS', 'PEAGE', 'PEAGES',
+  'VOITURE', 'ABONNEMENTS', 'TELEPHONIE', 'TELEPHONE', 'INTERNET', 'MULTIMEDIA', 'LOGEMENT', 'ELECTRICITE',
+  'GAZ', 'EAU', 'FOURNITURES', 'PAPETERIE', 'ETUDES', 'SCOLARITE', 'SALAIRES', 'REVENUS DU TRAVAIL',
+  'ALLOCATIONS', 'AIDES', 'PRESTATIONS SOCIALES', 'SANTE', 'LIVRES',
+];
+
 /** Colours offered to new categories, in order. */
 export const CATEGORY_COLORS = [
   '#F59E0B', '#EC4899', '#3B82F6', '#8B5CF6', '#14B8A6', '#EF4444',
@@ -162,6 +171,13 @@ const MIGRATIONS: ((db: Db) => Promise<void>)[] = [
   // v3: rules on the bank's own category names (used when no merchant keyword matches)
   async (db) => {
     await seedRules(db, BANK_CATEGORY_RULES);
+  },
+  // v4: generic bank-category words ("INTERNET", "EAU"…) must only match the bank's category
+  // column, not the operation label ("CB SNCF INTERNET" is a train ticket, not a subscription).
+  async (db) => {
+    await db.execAsync("ALTER TABLE category_rules ADD COLUMN scope TEXT NOT NULL DEFAULT 'label'");
+    const list = CATEGORY_SCOPE_PATTERNS.map(() => '?').join(', ');
+    await db.runAsync(`UPDATE category_rules SET scope = 'category' WHERE pattern IN (${list})`, CATEGORY_SCOPE_PATTERNS);
   },
 ];
 

@@ -1,7 +1,9 @@
 // Bank statement import: parsing (CSV / OFX), label cleaning, rule-based categorisation and
 // de-duplication. Pure functions only — no database access here.
 import { unzipSync } from 'fflate';
-import { isValidDateStr, parseDate } from './dates.ts';
+import { isValidDateStr, parseDate, todayStr } from './dates.ts';
+import { parsePdfStatement } from './pdfStatement.ts';
+import type { PdfTextExtractor } from './pdfText.types.ts';
 import { round2 } from './money.ts';
 
 export interface ParsedTx {
@@ -18,7 +20,7 @@ export interface ParsedTx {
 }
 
 export interface ParseResult {
-  format: 'csv' | 'ofx';
+  format: 'csv' | 'ofx' | 'pdf';
   rows: ParsedTx[];
   /** Lines that looked like data but could not be read. */
   skipped: number;
@@ -311,6 +313,39 @@ function parseOfx(text: string): ParseResult {
   return { format: 'ofx', rows: out, skipped };
 }
 
+const isPdf = (b: Uint8Array) => b[0] === 0x25 && b[1] === 0x50 && b[2] === 0x44 && b[3] === 0x46; // %PDF
+
+/**
+ * Any statement file: CSV / OFX / PDF, or a ZIP of them. `pdfText` extracts the text of a PDF
+ * (platform specific, see pdfText.web.ts). Inside a ZIP, PDFs are only read when there is no
+ * CSV/OFX (Boursorama zips its CSV with an unrelated PDF form).
+ */
+export async function readStatementFile(
+  bytes: Uint8Array,
+  pdfText: PdfTextExtractor,
+  today: string = todayStr(),
+): Promise<ParseResult> {
+  if (isPdf(bytes)) return parsePdfStatement(await pdfText(bytes), today);
+  if (!isZip(bytes)) return parseStatementFile(bytes);
+  try {
+    return parseStatementFile(bytes);
+  } catch (e) {
+    const pdfs = unzipEntries(bytes, 0).filter(([, data]) => isPdf(data));
+    if (!pdfs.length) throw e;
+    const results: ParseResult[] = [];
+    let lastError = e as Error;
+    for (const [, data] of pdfs) {
+      try {
+        results.push(parsePdfStatement(await pdfText(data), today));
+      } catch (err) {
+        lastError = err as Error;
+      }
+    }
+    if (!results.length) throw lastError;
+    return { format: 'pdf', rows: results.flatMap((r) => r.rows), skipped: results.reduce((n, r) => n + r.skipped, 0) };
+  }
+}
+
 const isZip = (b: Uint8Array) => b[0] === 0x50 && b[1] === 0x4b && b[2] === 0x03 && b[3] === 0x04;
 
 /**
@@ -420,6 +455,8 @@ export interface Rule {
   pattern: string;
   kind: RuleKind;
   category_id: number | null;
+  /** 'category': only matched against the bank's own category column (generic words). */
+  scope?: 'label' | 'category';
 }
 
 /** Longest matching pattern wins; expense rules only apply to debits, income/sale rules to credits. */
@@ -493,8 +530,14 @@ export function planImport(
   knownKeys: Set<string>,
   unlinked: ExistingTx[],
   rules: Rule[],
+  /** Operations imported before (maybe from another format: CSV then PDF, whose labels differ). */
+  imported: (ExistingTx & { import_key: string })[] = [],
 ): ImportPlan {
   const keys = importKeys(parsed);
+  const fileKeys = new Set(keys);
+  // Same amount, same direction, ±1 day, not already this file's own line → same operation.
+  const importedPool = imported.filter((t) => !fileKeys.has(t.import_key));
+  const labelRules = rules.filter((r) => r.scope !== 'category');
   const available = [...unlinked];
   const rows: PlannedRow[] = [];
   let alreadyImported = 0;
@@ -502,9 +545,13 @@ export function planImport(
     if (knownKeys.has(keys[i])) { alreadyImported++; return; }
     const isCredit = p.amount > 0;
     const amount = Math.abs(p.amount);
+    const twin = importedPool.findIndex(
+      (t) => (isCredit ? t.type !== 'expense' : t.type === 'expense') && Math.abs(t.amount - amount) < 0.001 && dayDiff(t.date, p.date) <= 1,
+    );
+    if (twin >= 0) { importedPool.splice(twin, 1); alreadyImported++; return; }
     // Merchant keywords first; the bank's own category only as a fallback.
     const rule =
-      matchRule(rules, [p.label, p.displayLabel].filter(Boolean).join(' '), p.amount) ??
+      matchRule(labelRules, [p.label, p.displayLabel].filter(Boolean).join(' '), p.amount) ??
       (p.bankCategory ? matchRule(rules, p.bankCategory, p.amount) : null);
     const type: TxKind = !isCredit ? 'expense' : rule?.kind === 'sale' ? 'sale' : 'income';
     // Same amount & direction within a few days → probably the manual entry of this very operation.

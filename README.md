@@ -31,10 +31,17 @@ déjà ouvert → tape le montant → **touche une catégorie = enregistré** (d
 Pas de connexion bancaire (payant, serveur obligatoire, données sensibles) : on importe le **fichier exporté par la banque**,
 lu uniquement sur le téléphone. Seules les **espèces** restent à saisir avec **+**.
 
-1. Dans l'app / le site de la banque : « Exporter / Télécharger mes opérations » → **CSV** (ou Excel-CSV) ou **OFX**
+1. Dans l'app / le site de la banque : « Exporter / Télécharger mes opérations » → **CSV**, **OFX**, ou simplement
+   le **relevé PDF** (ou le ZIP tel quel)
 2. Tirelire+ → Historique → **⤓ Importer un relevé** → choisir le fichier
 3. Vérifier l'aperçu, corriger les catégories si besoin → **Importer**
 
+- **Relevés PDF** (version installée depuis le navigateur) : le texte est lu avec pdf.js sur le téléphone, puis les
+  lignes « date … libellé … montant » sont reconstituées ; les colonnes Débit / Crédit / Montant / Solde sont repérées
+  grâce à l'en-tête du tableau (sinon : signe du montant ou mots comme « virement reçu »). Dates `JJ/MM` complétées avec
+  l'année du relevé, libellés sur plusieurs lignes, lignes de total/solde ignorées. Les PDF scannés (images) ne sont
+  pas lisibles sans OCR : l'appli le signale. Un même mois importé en CSV puis en PDF ne crée pas de doublons
+  (même montant, ± 1 jour)
 - **Formats reconnus** : CSV avec `;` `,` ou tabulation, avec ou sans ligne d'en-tête, colonne « Montant » signée ou
   colonnes « Débit » / « Crédit » séparées, dates `JJ/MM/AAAA`, `JJ/MM/AA` ou `AAAA-MM-JJ`, UTF-8 ou Latin-1 (accents
   des exports Windows). OFX/QFX (utilise l'identifiant unique de chaque opération). Lignes d'en-tête/de solde ignorées
