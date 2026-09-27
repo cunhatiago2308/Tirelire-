@@ -6,7 +6,9 @@ import { router } from 'expo-router';
 import { Button, Card, Chip, closeScreen, Muted, Screen, styles as ui, useDb } from '../components/ui.tsx';
 import { applyImport, getCategories, prepareImport, type ImportResult } from '../db/repo.ts';
 import type { Category } from '../db/types.ts';
-import { parseStatementFile, type PlannedRow } from '../lib/bankImport.ts';
+import { readStatementFile, type PlannedRow } from '../lib/bankImport.ts';
+// Extensionless on purpose: Metro picks pdfText.web.ts on the web, pdfText.ts on native.
+import { extractPdfText } from '../lib/pdfText';
 import { formatDateLong, formatDateShort } from '../lib/dates.ts';
 import { formatMoney } from '../lib/money.ts';
 import { colors, typeMeta } from '../theme.ts';
@@ -38,7 +40,7 @@ export default function ImportScreen() {
       const bytes = asset.file
         ? new Uint8Array(await asset.file.arrayBuffer()) // web
         : await new File(asset.uri).bytes();
-      const parsed = parseStatementFile(bytes);
+      const parsed = await readStatementFile(bytes, extractPdfText);
       const plan = await prepareImport(db, parsed.rows);
       setCategories(await getCategories(db));
       setRows(plan.rows);
@@ -82,7 +84,7 @@ export default function ImportScreen() {
           <Text style={ui.sectionTitle}>Importer un relevé bancaire</Text>
           <Muted>
             1. Dans l'app ou sur le site de ta banque, exporte tes opérations (souvent « Télécharger / Exporter mes
-            opérations »), au format CSV, OFX, ou le ZIP tel quel.{'\n'}
+            opérations »), au format CSV, OFX ou PDF (ou le ZIP tel quel).{'\n'}
             2. Choisis le fichier ici : les opérations sont lues sur ton téléphone, rien n'est envoyé nulle part.{'\n'}
             3. Vérifie la catégorisation, puis importe.
           </Muted>

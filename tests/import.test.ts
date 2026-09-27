@@ -238,5 +238,16 @@ test('Boursorama export inside a ZIP: amount vs balance, suggested label, bank c
 test('ZIP without any statement gives a clear error', async () => {
   const { zipSync } = await import('fflate');
   const { parseStatementFile } = await import('../src/lib/bankImport.ts');
-  assert.throws(() => parseStatementFile(zipSync({ 'a.pdf': new Uint8Array([1, 2, 3]) })), /Aucun relevé/);
+  assert.throws(
+    () => parseStatementFile(zipSync({ 'kit.pdf': new Uint8Array([37, 80, 68, 70, 0]) })),
+    /Aucun relevé.*Il contient : kit\.pdf/,
+  );
+});
+
+test('ZIP: statement without extension, in a folder, or inside a nested ZIP', async () => {
+  const { zipSync, strToU8 } = await import('fflate');
+  const { parseStatementFile } = await import('../src/lib/bankImport.ts');
+  const inner = zipSync({ 'export/operations': strToU8(BOURSO) });
+  const outer = zipSync({ '__MACOSX/._x': strToU8('junk'), 'releve.zip': inner, 'doc.pdf': new Uint8Array([37, 80, 68, 70]) });
+  assert.equal(parseStatementFile(outer).rows.length, 3);
 });

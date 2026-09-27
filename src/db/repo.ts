@@ -506,7 +506,12 @@ export async function prepareImport(db: Db, parsed: ParsedTx[]): Promise<ImportP
      WHERE import_key IS NULL AND date BETWEEN date(?, '-5 days') AND date(?, '+5 days')`,
     [dates[0], dates[dates.length - 1]],
   );
-  return planImport(parsed, keys, unlinked, await listRules(db));
+  const imported = await db.getAllAsync<ExistingTx & { import_key: string }>(
+    `SELECT id, type, amount, date, import_key FROM transactions
+     WHERE import_key IS NOT NULL AND date BETWEEN date(?, '-2 days') AND date(?, '+2 days')`,
+    [dates[0], dates[dates.length - 1]],
+  );
+  return planImport(parsed, keys, unlinked, await listRules(db), imported);
 }
 
 export interface ImportResult {

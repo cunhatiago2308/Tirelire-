@@ -73,6 +73,7 @@ export interface RuleRow {
   pattern: string;
   kind: 'expense' | 'income' | 'sale' | 'ignore';
   category_id: number | null;
+  scope: 'label' | 'category';
   category_name: string | null;
   category_color: string | null;
 }

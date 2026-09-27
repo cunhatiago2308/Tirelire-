@@ -1,7 +1,9 @@
 // Bank statement import: parsing (CSV / OFX), label cleaning, rule-based categorisation and
 // de-duplication. Pure functions only — no database access here.
 import { unzipSync } from 'fflate';
-import { isValidDateStr, parseDate } from './dates.ts';
+import { isValidDateStr, parseDate, todayStr } from './dates.ts';
+import { parsePdfStatement } from './pdfStatement.ts';
+import type { PdfTextExtractor } from './pdfText.types.ts';
 import { round2 } from './money.ts';
 
 export interface ParsedTx {
@@ -18,7 +20,7 @@ export interface ParsedTx {
 }
 
 export interface ParseResult {
-  format: 'csv' | 'ofx';
+  format: 'csv' | 'ofx' | 'pdf';
   rows: ParsedTx[];
   /** Lines that looked like data but could not be read. */
   skipped: number;
@@ -311,6 +313,39 @@ function parseOfx(text: string): ParseResult {
   return { format: 'ofx', rows: out, skipped };
 }
 
+const isPdf = (b: Uint8Array) => b[0] === 0x25 && b[1] === 0x50 && b[2] === 0x44 && b[3] === 0x46; // %PDF
+
+/**
+ * Any statement file: CSV / OFX / PDF, or a ZIP of them. `pdfText` extracts the text of a PDF
+ * (platform specific, see pdfText.web.ts). Inside a ZIP, PDFs are only read when there is no
+ * CSV/OFX (Boursorama zips its CSV with an unrelated PDF form).
+ */
+export async function readStatementFile(
+  bytes: Uint8Array,
+  pdfText: PdfTextExtractor,
+  today: string = todayStr(),
+): Promise<ParseResult> {
+  if (isPdf(bytes)) return parsePdfStatement(await pdfText(bytes), today);
+  if (!isZip(bytes)) return parseStatementFile(bytes);
+  try {
+    return parseStatementFile(bytes);
+  } catch (e) {
+    const pdfs = unzipEntries(bytes, 0).filter(([, data]) => isPdf(data));
+    if (!pdfs.length) throw e;
+    const results: ParseResult[] = [];
+    let lastError = e as Error;
+    for (const [, data] of pdfs) {
+      try {
+        results.push(parsePdfStatement(await pdfText(data), today));
+      } catch (err) {
+        lastError = err as Error;
+      }
+    }
+    if (!results.length) throw lastError;
+    return { format: 'pdf', rows: results.flatMap((r) => r.rows), skipped: results.reduce((n, r) => n + r.skipped, 0) };
+  }
+}
+
 const isZip = (b: Uint8Array) => b[0] === 0x50 && b[1] === 0x4b && b[2] === 0x03 && b[3] === 0x04;
 
 /**
@@ -319,29 +354,60 @@ const isZip = (b: Uint8Array) => b[0] === 0x50 && b[1] === 0x4b && b[2] === 0x03
  */
 export function parseStatementFile(bytes: Uint8Array): ParseResult {
   if (!isZip(bytes)) return parseStatement(decodeBytes(bytes));
-  let files: Record<string, Uint8Array>;
-  try {
-    files = unzipSync(bytes, { filter: (f) => /\.(csv|ofx|qfx|txt)$/i.test(f.name) && !f.name.startsWith('__MACOSX') });
-  } catch {
-    throw new Error('Fichier ZIP illisible.');
-  }
+  const entries = unzipEntries(bytes, 0);
   const results: ParseResult[] = [];
-  let lastError: Error | null = null;
-  for (const name of Object.keys(files).sort()) {
+  const errors: string[] = [];
+  // Every file is tried whatever its name (".CSV", ".txt", no extension…); PDFs and other binaries are skipped.
+  for (const [name, data] of entries) {
+    if (isBinary(data)) continue;
     try {
-      results.push(parseStatement(decodeBytes(files[name])));
+      results.push(parseStatement(decodeBytes(data)));
     } catch (e) {
-      lastError = e as Error;
+      errors.push(`${baseName(name)} : ${(e as Error).message}`);
     }
   }
   if (!results.length) {
-    throw lastError ?? new Error('Aucun relevé (CSV ou OFX) trouvé dans ce ZIP.');
+    const list = entries.map(([n]) => baseName(n)).join(', ') || 'rien';
+    throw new Error(
+      errors.length
+        ? `Relevé illisible dans ce ZIP. ${errors.join(' ')}`
+        : `Aucun relevé (CSV ou OFX) trouvé dans ce ZIP. Il contient : ${list}.`,
+    );
   }
   return {
     format: results[0].format,
     rows: results.flatMap((r) => r.rows),
     skipped: results.reduce((n, r) => n + r.skipped, 0),
   };
+}
+
+const baseName = (path: string) => path.split('/').pop() ?? path;
+
+/** Files of a ZIP (sorted by name), including those of ZIPs nested inside it. */
+function unzipEntries(bytes: Uint8Array, depth: number): [string, Uint8Array][] {
+  let files: Record<string, Uint8Array>;
+  try {
+    files = unzipSync(bytes);
+  } catch (e) {
+    throw new Error(`Fichier ZIP illisible (${(e as Error).message}).`);
+  }
+  const out: [string, Uint8Array][] = [];
+  for (const name of Object.keys(files).sort()) {
+    const data = files[name];
+    const base = baseName(name);
+    if (name.endsWith('/') || name.startsWith('__MACOSX') || base.startsWith('._') || !data.length) continue;
+    if (isZip(data) && depth < 2) out.push(...unzipEntries(data, depth + 1));
+    else out.push([name, data]);
+  }
+  return out;
+}
+
+/** PDF, images, Office files…: NUL bytes or a known binary signature in the first bytes. */
+function isBinary(b: Uint8Array): boolean {
+  if (b[0] === 0x25 && b[1] === 0x50 && b[2] === 0x44 && b[3] === 0x46) return true; // %PDF
+  const n = Math.min(b.length, 1024);
+  for (let i = 0; i < n; i++) if (b[i] === 0) return true;
+  return false;
 }
 
 export function parseStatement(text: string): ParseResult {
@@ -389,6 +455,8 @@ export interface Rule {
   pattern: string;
   kind: RuleKind;
   category_id: number | null;
+  /** 'category': only matched against the bank's own category column (generic words). */
+  scope?: 'label' | 'category';
 }
 
 /** Longest matching pattern wins; expense rules only apply to debits, income/sale rules to credits. */
@@ -462,8 +530,14 @@ export function planImport(
   knownKeys: Set<string>,
   unlinked: ExistingTx[],
   rules: Rule[],
+  /** Operations imported before (maybe from another format: CSV then PDF, whose labels differ). */
+  imported: (ExistingTx & { import_key: string })[] = [],
 ): ImportPlan {
   const keys = importKeys(parsed);
+  const fileKeys = new Set(keys);
+  // Same amount, same direction, ±1 day, not already this file's own line → same operation.
+  const importedPool = imported.filter((t) => !fileKeys.has(t.import_key));
+  const labelRules = rules.filter((r) => r.scope !== 'category');
   const available = [...unlinked];
   const rows: PlannedRow[] = [];
   let alreadyImported = 0;
@@ -471,9 +545,13 @@ export function planImport(
     if (knownKeys.has(keys[i])) { alreadyImported++; return; }
     const isCredit = p.amount > 0;
     const amount = Math.abs(p.amount);
+    const twin = importedPool.findIndex(
+      (t) => (isCredit ? t.type !== 'expense' : t.type === 'expense') && Math.abs(t.amount - amount) < 0.001 && dayDiff(t.date, p.date) <= 1,
+    );
+    if (twin >= 0) { importedPool.splice(twin, 1); alreadyImported++; return; }
     // Merchant keywords first; the bank's own category only as a fallback.
     const rule =
-      matchRule(rules, [p.label, p.displayLabel].filter(Boolean).join(' '), p.amount) ??
+      matchRule(labelRules, [p.label, p.displayLabel].filter(Boolean).join(' '), p.amount) ??
       (p.bankCategory ? matchRule(rules, p.bankCategory, p.amount) : null);
     const type: TxKind = !isCredit ? 'expense' : rule?.kind === 'sale' ? 'sale' : 'income';
     // Same amount & direction within a few days → probably the manual entry of this very operation.
